@@ -1,6 +1,8 @@
+from ast import arg
 import asyncio
 import aiohttp
 import json
+import argparse
 
 BUFFER = 65536
 
@@ -31,8 +33,8 @@ async def start(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
 
     
 
-async def main():
-    reader, writer = await asyncio.open_connection('127.0.0.1', 8887)
+async def main(host='127.0.0.1', port=8887):
+    reader, writer = await asyncio.open_connection(host=host, port=port)
     if reader and reader != None:
         task = asyncio.create_task(start(reader, writer))
         if task:
@@ -42,6 +44,10 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-H', '--host', required=True)
+        parser.add_argument('-P', '--port', required=True)
+        args = parser.parse_args()
+        asyncio.run(main(args.host, int(args.port)))
     except KeyboardInterrupt:
         pass

@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 
 BUFFER = 65536
 
@@ -28,8 +29,8 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     await close_writer(writer)
         
 
-async def main():
-    server = await asyncio.start_server(handle_client, '0.0.0.0', 8891)
+async def main(host:str, port:int):
+    server = await asyncio.start_server(handle_client, host, port)
     addr = ', '.join(str(sock.getsockname()) for sock in server.sockets)
     print(f'Serving on {addr}')
     
@@ -37,7 +38,12 @@ async def main():
         await server.serve_forever()
 
 if __name__ == "__main__":
-    asyncio.run(main=main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-H', '--host', required=True)
+    parser.add_argument('-P', '--port', required=True)
+    args = parser.parse_args()
+
+    asyncio.run(main=main(args.host, int(args.port)))
 
 
 
