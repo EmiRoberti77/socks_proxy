@@ -14,6 +14,7 @@ DCS_PORT = 1081  # DCS SOCKS5 server port
 ROUTING_TABLE = {
     8887: ('127.0.0.1', 8891),  # Clients on port 8887 -> test_server:8891
     8888: ('127.0.0.1', 9000),  # Clients on port 8888 -> another_server:9000
+    6767: ('172.23.16.1', 7978), # Clients on port 6767 -> VSG_CCS:7978
     # 8889: ('example.com', 80),  # Clients on port 8889 -> example.com:80
 }
 
