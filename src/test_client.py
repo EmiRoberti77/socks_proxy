@@ -32,7 +32,7 @@ async def start(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
     
 
 async def main():
-    reader, writer = await asyncio.open_connection('127.0.0.1', 8888)
+    reader, writer = await asyncio.open_connection('127.0.0.1', 8887)
     if reader and reader != None:
         task = asyncio.create_task(start(reader, writer))
         if task:
