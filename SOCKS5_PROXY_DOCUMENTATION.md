@@ -1,6 +1,7 @@
 # SOCKS5 Proxy Protocol and Implementation Guide
 
 ## Table of Contents
+
 1. [What is SOCKS5?](#what-is-socks5)
 2. [SOCKS5 Protocol Overview](#socks5-protocol-overview)
 3. [Protocol Flow](#protocol-flow)
@@ -15,6 +16,7 @@
 SOCKS5 is a network protocol that acts as an intermediary between a client and a server. It provides a way for clients to establish TCP (and UDP) connections through a proxy server without the client needing to know the proxy's details.
 
 ### Key Benefits:
+
 - **Transparency**: Client applications don't need modification
 - **Security**: Can route traffic through secure networks
 - **Flexibility**: Supports IPv4, IPv6, and domain names
@@ -52,22 +54,26 @@ The SOCKS5 protocol consists of three main phases:
 **Version (VER)**: Always `0x05` for SOCKS5
 
 **Methods**: Authentication methods
+
 - `0x00`: No authentication required
 - `0x01`: GSSAPI
 - `0x02`: Username/Password
 - `0xFF`: No acceptable methods
 
 **Commands (CMD)**:
+
 - `0x01`: CONNECT (TCP connection)
 - `0x02`: BIND (TCP port binding)
 - `0x03`: UDP ASSOCIATE
 
 **Address Types (ATYP)**:
+
 - `0x01`: IPv4 address (4 bytes)
 - `0x03`: Domain name (1 byte length + domain)
 - `0x04`: IPv6 address (16 bytes)
 
 **Replies (REP)**:
+
 - `0x00`: Succeeded
 - `0x01`: General SOCKS server failure
 - `0x07`: Command not supported
@@ -89,6 +95,7 @@ Client                          Proxy Server
 ```
 
 **What happens:**
+
 1. Client sends version (5), number of methods (1), and method (0x00 = no auth)
 2. Proxy responds with version (5) and selected method (0x00)
 
@@ -108,6 +115,7 @@ Client                          Proxy Server
 ```
 
 **What happens:**
+
 1. Client sends connection request with target address and port
 2. Proxy establishes connection to target server
 3. Proxy responds with success and bound address/port
@@ -129,6 +137,7 @@ Client                          Proxy Server                    Target Server
 ```
 
 **What happens:**
+
 1. Client sends data to proxy
 2. Proxy forwards data to target server
 3. Target server responds
@@ -181,18 +190,21 @@ This codebase implements a **two-tier proxy architecture**:
 ### Component Roles
 
 **PPP Proxy (`socks5_ppp.py`)**:
+
 - Accepts regular TCP connections from clients
 - Uses port-based routing to determine target
 - Converts regular TCP to SOCKS5 protocol
 - Forwards SOCKS5 requests to DCS
 
 **DCS Proxy (`socks5_dcs.py`)**:
+
 - Implements full SOCKS5 server
 - Receives SOCKS5 connection requests
 - Connects to final target servers
 - Tunnels bidirectional data
 
 **Target Servers**:
+
 - Any TCP server (HTTP, custom protocols, etc.)
 - No SOCKS5 knowledge required
 
@@ -213,6 +225,7 @@ ROUTING_TABLE = {
 ```
 
 **How it works:**
+
 1. Client connects to PPP on a specific port (e.g., 8887)
 2. PPP looks up the port in routing table
 3. PPP extracts target host and port
@@ -365,6 +378,7 @@ Both PPP and DCS implement bidirectional tunneling using two concurrent pipes:
 ```
 
 **Key Points:**
+
 - Each client connects to a different port on PPP
 - PPP routes each connection to different targets via DCS
 - All connections are independent and concurrent
@@ -408,10 +422,12 @@ Example: `[0x05, 0x00]` = SOCKS5, no auth selected
 +----+-----+-------+-------+----------+----------+
 ```
 
-Example for IPv4: `[0x05, 0x01, 0x00, 0x01, 127, 0, 0, 1, 0x22, 0x9B]`
+Example for IPv4: `--
+
 - VER=5, CMD=CONNECT, ATYP=IPv4, DST.ADDR=127.0.0.1, PORT=8891
 
 Example for Domain: `[0x05, 0x01, 0x00, 0x03, 0x0B, 'e', 'x', 'a', 'm', 'p', 'l', 'e', '.', 'c', 'o', 'm', 0x00, 0x50]`
+
 - VER=5, CMD=CONNECT, ATYP=Domain, Length=11, Domain="example.com", PORT=80
 
 ### Connection Reply (Proxy → Client)
@@ -420,11 +436,12 @@ Example for Domain: `[0x05, 0x01, 0x00, 0x03, 0x0B, 'e', 'x', 'a', 'm', 'p', 'l'
 +----+-----+-------+-------+----------+----------+
 |VER | REP |  RSV  | ATYP  | BND.ADDR| BND.PORT |
 +----+-----+-------+-------+----------+----------+
-| 1  |  1  | X'00' |   1   | Variable|    2     |
+| 1  |  1  | X'00' |   1   | Variable |    2    |
 +----+-----+-------+-------+----------+----------+
 ```
 
 Example: `[0x05, 0x00, 0x00, 0x01, 192, 168, 1, 1, 0x12, 0x34]`
+
 - VER=5, REP=SUCCESS, ATYP=IPv4, BND.ADDR=192.168.1.1, BND.PORT=4660
 
 ---
@@ -432,26 +449,31 @@ Example: `[0x05, 0x00, 0x00, 0x01, 192, 168, 1, 1, 0x12, 0x34]`
 ## Key Implementation Features
 
 ### 1. Asynchronous I/O
+
 - Uses Python's `asyncio` for concurrent connections
 - Non-blocking I/O allows handling multiple clients simultaneously
 - Efficient resource usage
 
 ### 2. Port-Based Routing
+
 - No client modification required
 - Simple configuration via routing table
 - Supports multiple targets simultaneously
 
 ### 3. Protocol Conversion
+
 - PPP converts regular TCP to SOCKS5
 - Transparent to clients
 - Standard SOCKS5 protocol between PPP and DCS
 
 ### 4. Bidirectional Tunneling
+
 - Two concurrent pipes per connection
 - Full-duplex communication
 - Automatic cleanup on connection close
 
 ### 5. Error Handling
+
 - Proper SOCKS5 error codes
 - Graceful connection cleanup
 - Detailed logging for debugging
@@ -461,15 +483,19 @@ Example: `[0x05, 0x00, 0x00, 0x01, 192, 168, 1, 1, 0x12, 0x34]`
 ## Use Cases
 
 ### 1. Multi-Target Routing
+
 Route different clients to different backend servers based on connection port.
 
 ### 2. Protocol Translation
+
 Convert regular TCP clients to use SOCKS5 infrastructure.
 
 ### 3. Network Segmentation
+
 Route traffic through controlled proxy infrastructure.
 
 ### 4. Load Distribution
+
 Distribute connections across multiple backend servers.
 
 ---
@@ -486,4 +512,3 @@ This implementation provides a flexible, scalable SOCKS5 proxy solution that:
 - **Handles multiple targets** (port-based routing table)
 
 The two-tier architecture (PPP → DCS → Target) provides flexibility and separation of concerns, making it easy to add new routing rules or modify target servers without affecting clients.
-

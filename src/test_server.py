@@ -1,5 +1,6 @@
 import asyncio
 import argparse
+from datetime import datetime
 
 BUFFER = 65536
 
@@ -21,6 +22,7 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
             if not data:
                 break
             
+            print(f'[{datetime.now().isoformat()}]->read:{len(data)} bytes')
             writer.write(data)
             await writer.drain()
         except Exception as e:
@@ -42,8 +44,10 @@ if __name__ == "__main__":
     parser.add_argument('-H', '--host', required=True)
     parser.add_argument('-P', '--port', required=True)
     args = parser.parse_args()
-
-    asyncio.run(main=main(args.host, int(args.port)))
+    try:
+        asyncio.run(main=main(args.host, int(args.port)))
+    except KeyboardInterrupt:
+        print('exit')
 
 
 
