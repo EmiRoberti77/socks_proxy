@@ -1,0 +1,17 @@
+[Unit]
+Description=PPP transparent to DCS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emi
+WorkingDirectory=/mnt/c/code/VSG/socks_proxy
+ExecStart=/usr/bin/python3 /mnt/c/code/VSG/socks_proxy/src/socks5_ppp.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+
+

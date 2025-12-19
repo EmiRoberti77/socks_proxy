@@ -1,9 +1,33 @@
 import asyncio
 import struct
 import socket
+import json
+import os
+import time
 import socks5_commands as sc
 
 BUFFER = 65536
+
+# region agent log
+def agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
+    try:
+        log_dir = '/mnt/c/code/VSG/socks_proxy/.cursor'
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'debug.log')
+        payload = {
+            "sessionId": "debug-session",
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(log_path, 'a') as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
+# endregion
 
 async def close_writer(writer:asyncio.StreamWriter):
     try:
@@ -35,7 +59,7 @@ def pack_reply(rep:int, bind_host:str = '0.0.0.0', bind_port:int=0)->bytes:
         addr_part = addr
     except OSError:
         atyp = sc.ATYP_IPV4
-        addr_part = socket.inet_pton('0.0.0.0')
+        addr_part = socket.inet_pton(socket.AF_INET, '0.0.0.0')
     return struct.pack('!BBBB', sc.SOCKS_VERSION, rep, 0x00, atyp) + addr_part + struct.pack('!H', bind_port)
 
 async def pipe(reader:asyncio.StreamReader, writer:asyncio.StreamWriter, direction: str = ""):
@@ -60,6 +84,7 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     """SOCKS5 server that routes to final targets"""
     addr = writer.get_extra_info('peername')
     print(f'DCS: New SOCKS5 client connected from {addr}')
+    agent_log("H9", "socks5_dcs.py:handle_client", "SOCKS5 client connected", {"peer": addr})
     
     try:
         # SOCKS5 handshake
@@ -110,11 +135,17 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
         # Connect to final target
         try:
             target_reader, target_writer = await asyncio.open_connection(dst_host, dst_port)
+            agent_log("H10", "socks5_dcs.py:handle_client", "connected final target", {
+                "dst_host": dst_host, "dst_port": dst_port
+            })
         except Exception as e:
             writer.write(pack_reply(sc.REP_GENERAL_FAILURE))
             await writer.drain()
             await close_writer(writer)
             print(f'DCS: ERR:Target connection:{str(e)}')
+            agent_log("H11", "socks5_dcs.py:handle_client", "final target connect failed", {
+                "dst_host": dst_host, "dst_port": dst_port, "error": str(e)
+            })
             return
         
         # Send success reply
@@ -143,6 +174,7 @@ async def main(host="0.0.0.0", port=1081):
     server = await asyncio.start_server(handle_client, host, port)
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets or [])
     print(f"DCS SOCKS5 server listening on {addrs}")
+    agent_log("H0", "socks5_dcs.py:main", "DCS listening", {"addrs": addrs})
     async with server:
         await server.serve_forever()
 
