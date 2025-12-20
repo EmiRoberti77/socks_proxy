@@ -7,6 +7,7 @@ import time
 import socks5_commands as sc
 
 BUFFER = 65536
+SO_MARK = 36  # Linux socket option; requires CAP_NET_ADMIN to set
 
 # region agent log
 def agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
@@ -80,6 +81,38 @@ async def pipe(reader:asyncio.StreamReader, writer:asyncio.StreamWriter, directi
         print(f'DCS: INFO: Pipe closed {direction}, total bytes transferred: {total_bytes}')
         await close_writer(writer)
 
+async def open_connection_marked(host: str, port: int, mark: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """
+    Open an outbound TCP connection with SO_MARK set so iptables can bypass NAT redirection.
+    If setting the mark fails (no privileges), falls back to a normal open_connection.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        addrinfos = await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        if not addrinfos:
+            raise OSError(f"getaddrinfo returned no results for {host}:{port}")
+        family, socktype, proto, _, sockaddr = addrinfos[0]
+        sock = socket.socket(family=family, type=socktype, proto=proto)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, SO_MARK, int(mark))
+        except Exception as e:
+            # Don't break connectivity if we can't mark; caller may still work if NAT isn't active.
+            agent_log("H12", "socks5_dcs.py:open_connection_marked", "SO_MARK failed, falling back", {
+                "host": host, "port": port, "mark": mark, "error": str(e)
+            })
+            sock.close()
+            return await asyncio.open_connection(host, port)
+
+        sock.setblocking(False)
+        try:
+            await loop.sock_connect(sock, sockaddr)
+        except Exception:
+            sock.close()
+            raise
+        return await asyncio.open_connection(sock=sock)
+    except Exception:
+        return await asyncio.open_connection(host, port)
+
 async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
     """SOCKS5 server that routes to final targets"""
     addr = writer.get_extra_info('peername')
@@ -134,7 +167,9 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
         
         # Connect to final target
         try:
-            target_reader, target_writer = await asyncio.open_connection(dst_host, dst_port)
+            # Default matches scripts/redirect_tcp_ppproxy.sh BYPASS_MARK
+            bypass_mark = int(os.environ.get("SOCKS_PROXY_BYPASS_MARK", "1"), 0)
+            target_reader, target_writer = await open_connection_marked(dst_host, dst_port, bypass_mark)
             agent_log("H10", "socks5_dcs.py:handle_client", "connected final target", {
                 "dst_host": dst_host, "dst_port": dst_port
             })

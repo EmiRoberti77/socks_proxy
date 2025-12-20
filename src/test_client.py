@@ -1,25 +1,13 @@
-from ast import arg
 import asyncio
-import aiohttp
-import json
 import argparse
 
 BUFFER = 65536
 
-async def message(index:int = 1):
-    async with aiohttp.ClientSession() as session:
-        endpoint = f"https://jsonplaceholder.typicode.com/todos/{index}"
-        async with session.get(endpoint) as resp:
-            json_data = await resp.json()
-            return json_data
-
-
 async def start(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
     index = 1
     while True:
-        json_message = await message(index=index)
-        encoded_message = json.dumps(json_message).encode('utf-8')
-        writer.write(encoded_message)
+        payload = f"msg-{index}\n".encode("utf-8")
+        writer.write(payload)
         await writer.drain()
         index += 1
         data = await reader.read(BUFFER)
@@ -28,7 +16,7 @@ async def start(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
             await writer.wait_closed()
             break
         
-        print(data.decode())
+        print(data.decode(errors="replace"), end="")
         await asyncio.sleep(2)
 
     

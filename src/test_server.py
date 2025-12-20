@@ -9,7 +9,7 @@ async def close_writer(writer:asyncio.StreamWriter):
         if not writer.is_closing():
             print(f'closing writer')
             writer.close()
-            await writer.wait_closed
+            await writer.wait_closed()
     except Exception:
         pass
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('-P', '--port', required=True)
     args = parser.parse_args()
     try:
-        asyncio.run(main=main(args.host, int(args.port)))
+        asyncio.run(main(args.host, int(args.port)))
     except KeyboardInterrupt:
         print('exit')
 
