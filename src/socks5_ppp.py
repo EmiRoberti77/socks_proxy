@@ -12,8 +12,13 @@ BUFFER = 65536
 INGRESS_BIND_HOST = '0.0.0.0'
 INGRESS_PORT = 6767
 
-DCS_HOST = '127.0.0.1'
+DCS_HOST = '192.168.32.128'
 DCS_PORT = 1081  # DCS SOCKS5 server port
+
+DST_OVERRIDE = {
+    ("198.18.0.1", 8000): ("192.168.1.109", 8000),  # dummy -> real CCS
+}
+
 
 # Linux IPv4 original destination socket option
 SO_ORIGINAL_DST = 80
@@ -201,7 +206,18 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     try:
         first_data = b''
         # Prefer original destination if traffic arrived via NAT REDIRECT
+        # Prefer original destination if traffic arrived via NAT REDIRECT
         orig = get_original_dst(writer)
+        if orig:
+            orig_ip, orig_port = orig
+            orig_port = int(orig_port)
+
+            # Apply override (dummy -> real)
+            new_ip, new_port = DST_OVERRIDE.get((orig_ip, orig_port), (orig_ip, orig_port))
+            if (new_ip, new_port) != (orig_ip, orig_port):
+                print(f"PPP: DST_OVERRIDE {orig_ip}:{orig_port} -> {new_ip}:{new_port}")
+                orig = (new_ip, new_port)
+
         agent_log("H2", "socks5_ppp.py:handle_client", "after SO_ORIGINAL_DST", {"orig": orig})
         if orig:
             # If original destination points back to our own ingress (e.g., direct local connect),
