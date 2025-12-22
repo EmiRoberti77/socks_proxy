@@ -1,4 +1,5 @@
 import asyncio
+from pickle import TRUE
 import struct
 import socket
 import json
@@ -8,6 +9,7 @@ import socks5_commands as sc
 
 BUFFER = 65536
 SO_MARK = 36  # Linux socket option; requires CAP_NET_ADMIN to set
+_DEBUG = False
 
 # region agent log
 def agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
@@ -97,9 +99,10 @@ async def open_connection_marked(host: str, port: int, mark: int) -> tuple[async
             sock.setsockopt(socket.SOL_SOCKET, SO_MARK, int(mark))
         except Exception as e:
             # Don't break connectivity if we can't mark; caller may still work if NAT isn't active.
-            agent_log("H12", "socks5_dcs.py:open_connection_marked", "SO_MARK failed, falling back", {
-                "host": host, "port": port, "mark": mark, "error": str(e)
-            })
+            if _DEBUG:
+                agent_log("H12", "socks5_dcs.py:open_connection_marked", "SO_MARK failed, falling back", {
+                    "host": host, "port": port, "mark": mark, "error": str(e)
+                })
             sock.close()
             return await asyncio.open_connection(host, port)
 
@@ -117,7 +120,8 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     """SOCKS5 server that routes to final targets"""
     addr = writer.get_extra_info('peername')
     print(f'DCS: New SOCKS5 client connected from {addr}')
-    agent_log("H9", "socks5_dcs.py:handle_client", "SOCKS5 client connected", {"peer": addr})
+    if _DEBUG:
+        agent_log("H9", "socks5_dcs.py:handle_client", "SOCKS5 client connected", {"peer": addr})
     
     try:
         # SOCKS5 handshake
@@ -170,17 +174,19 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
             # Default matches scripts/redirect_tcp_ppproxy.sh BYPASS_MARK
             bypass_mark = int(os.environ.get("SOCKS_PROXY_BYPASS_MARK", "1"), 0)
             target_reader, target_writer = await open_connection_marked(dst_host, dst_port, bypass_mark)
-            agent_log("H10", "socks5_dcs.py:handle_client", "connected final target", {
-                "dst_host": dst_host, "dst_port": dst_port
-            })
+            if _DEBUG:
+                agent_log("H10", "socks5_dcs.py:handle_client", "connected final target", {
+                    "dst_host": dst_host, "dst_port": dst_port
+                })
         except Exception as e:
             writer.write(pack_reply(sc.REP_GENERAL_FAILURE))
             await writer.drain()
             await close_writer(writer)
             print(f'DCS: ERR:Target connection:{str(e)}')
-            agent_log("H11", "socks5_dcs.py:handle_client", "final target connect failed", {
-                "dst_host": dst_host, "dst_port": dst_port, "error": str(e)
-            })
+            if _DEBUG:
+                agent_log("H11", "socks5_dcs.py:handle_client", "final target connect failed", {
+                    "dst_host": dst_host, "dst_port": dst_port, "error": str(e)
+                })
             return
         
         # Send success reply
@@ -209,7 +215,8 @@ async def main(host="0.0.0.0", port=1081):
     server = await asyncio.start_server(handle_client, host, port)
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets or [])
     print(f"DCS SOCKS5 server listening on {addrs}")
-    agent_log("H0", "socks5_dcs.py:main", "DCS listening", {"addrs": addrs})
+    if _DEBUG:
+        agent_log("H0", "socks5_dcs.py:main", "DCS listening", {"addrs": addrs})
     async with server:
         await server.serve_forever()
 

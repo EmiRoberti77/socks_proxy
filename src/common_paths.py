@@ -1,0 +1,1 @@
+log_path  = '/mnt/c/code/VSG/socks_proxy/.cursor'

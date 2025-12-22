@@ -6,6 +6,7 @@ import os
 import time
 from typing import Optional, Tuple
 import socks5_commands as sc
+import common_paths
 
 BUFFER = 65536
 
@@ -14,6 +15,7 @@ INGRESS_PORT = 6767
 
 DCS_HOST = '192.168.32.128'
 DCS_PORT = 1081  # DCS SOCKS5 server port
+_DEBUG = True
 
 DST_OVERRIDE = {
     ("198.18.0.1", 8000): ("192.168.1.109", 8000),  # dummy -> real CCS
@@ -25,7 +27,7 @@ SO_ORIGINAL_DST = 80
 # region agent log
 def agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
     try:
-        log_dir = '/mnt/c/code/VSG/socks_proxy/.cursor'
+        log_dir = common_paths.log_path
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         payload = {
@@ -200,7 +202,8 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     local_port = local_addr[1] if local_addr else None
     
     print(f'PPP: New regular TCP client connected from {addr} on port {local_port}')
-    agent_log("H1", "socks5_ppp.py:handle_client", "client connected", {"peer": addr, "local_port": local_port})
+    if _DEBUG:
+        agent_log("H1", "socks5_ppp.py:handle_client", "client connected", {"peer": addr, "local_port": local_port})
     
     try:
         first_data = b''
@@ -217,7 +220,9 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
                 print(f"PPP: DST_OVERRIDE {orig_ip}:{orig_port} -> {new_ip}:{new_port}")
                 orig = (new_ip, new_port)
 
-        agent_log("H2", "socks5_ppp.py:handle_client", "after SO_ORIGINAL_DST", {"orig": orig})
+        if _DEBUG:
+            agent_log("H2", "socks5_ppp.py:handle_client", "after SO_ORIGINAL_DST", {"orig": orig})
+
         if orig:
             # If original destination points back to our own ingress (e.g., direct local connect),
             # treat it as absent so we can parse target from the first packet instead of looping.
@@ -229,32 +234,37 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
             print(f'PPP: Using SO_ORIGINAL_DST -> {target_host}:{target_port}')
         else:
             print('PPP: No SO_ORIGINAL_DST, parsing first packet')
-            agent_log("H3", "socks5_ppp.py:handle_client", "parsing header", {})
+            if _DEBUG:
+                agent_log("H3", "socks5_ppp.py:handle_client", "parsing header", {})
             target_host, target_port, first_data = await read_target_info(reader)
         parsed_from_packet = orig is None
-        agent_log("H4", "socks5_ppp.py:handle_client", "target decided", {
-            "target_host": target_host, "target_port": target_port, "parsed_from_packet": parsed_from_packet
-        })
+        if _DEBUG:
+            agent_log("H4", "socks5_ppp.py:handle_client", "target decided", {
+                "target_host": target_host, "target_port": target_port, "parsed_from_packet": parsed_from_packet
+            })
         
         # Loop guard: allow loopback only if target was explicitly provided via first packet parsing.
         if ((target_host in ('127.0.0.1', '::1') and not parsed_from_packet) or
             target_port == INGRESS_PORT or
             (target_host == DCS_HOST and target_port == DCS_PORT)):
             print(f'PPP: Loop guard triggered, refusing to proxy to {target_host}:{target_port}')
-            agent_log("H5", "socks5_ppp.py:handle_client", "loop guard triggered", {
-                "target_host": target_host, "target_port": target_port, "parsed_from_packet": parsed_from_packet
-            })
+            if _DEBUG:
+                agent_log("H5", "socks5_ppp.py:handle_client", "loop guard triggered", {
+                    "target_host": target_host, "target_port": target_port, "parsed_from_packet": parsed_from_packet
+                })
             return
         
         # Connect to DCS via SOCKS5
-        agent_log("H6", "socks5_ppp.py:handle_client", "connecting DCS", {
-            "dcs_host": DCS_HOST, "dcs_port": DCS_PORT, "target_host": target_host, "target_port": target_port
-        })
+        if _DEBUG:
+            agent_log("H6", "socks5_ppp.py:handle_client", "connecting DCS", {
+                "dcs_host": DCS_HOST, "dcs_port": DCS_PORT, "target_host": target_host, "target_port": target_port
+            })
         dcs_reader, dcs_writer = await socks5_connect_to_dcs(target_host, target_port)
         print(f'PPP: Connected to DCS, tunnel established to {target_host}:{target_port}')
-        agent_log("H7", "socks5_ppp.py:handle_client", "connected DCS", {
-            "target_host": target_host, "target_port": target_port
-        })
+        if _DEBUG:
+            agent_log("H7", "socks5_ppp.py:handle_client", "connected DCS", {
+                "target_host": target_host, "target_port": target_port
+            })
         
         # Send first data packet if any
         if first_data:
