@@ -208,7 +208,6 @@ async def handle_client(reader:asyncio.StreamReader, writer:asyncio.StreamWriter
     try:
         first_data = b''
         # Prefer original destination if traffic arrived via NAT REDIRECT
-        # Prefer original destination if traffic arrived via NAT REDIRECT
         orig = get_original_dst(writer)
         if orig:
             orig_ip, orig_port = orig
@@ -289,7 +288,9 @@ async def main():
     server = await asyncio.start_server(handle_client, INGRESS_BIND_HOST, INGRESS_PORT)
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets or [])
     print(f"PPP Proxy listening on {addrs} (single ingress) via DCS")
-    agent_log("H0", "socks5_ppp.py:main", "PPP listening", {"addrs": addrs})
+    if _DEBUG:
+        agent_log("H0", "socks5_ppp.py:main", "PPP listening", {"addrs": addrs})
+
     async with server:
         await server.serve_forever()
     
